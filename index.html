@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html lang="id">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>stream</title>
+
+  <style>
+
+/* ==== Player styling ==== */
+:root{
+  --accent: #ff4747;
+  --bar-bg: rgba(17,17,17,0.45);
+  --bar-blur: 6px;
+}
+#videoWrapper{
+  position:fixed;
+  inset:0;
+  background:#000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  z-index:1;
+}
+video{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:#000;
+  opacity:0;
+  transition:opacity .9s ease;
+}
+video.visible{opacity:1;}
+
+/* Speaker icon */
+#volumeHint{
+  position:fixed;
+  right:24px;
+  top:50%;
+  transform:translateY(-50%);
+  width:60px;
+  height:60px;
+  border-radius:50%;
+  background:rgba(0,0,0,0.45);
+  backdrop-filter:blur(4px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  z-index:2000;
+  border:1px solid rgba(255,255,255,0.08);
+  transition:transform .15s ease,opacity .25s ease;
+}
+#volumeHint:hover{transform:translateY(-50%) scale(1.08);}
+#volumeHint svg{width:28px;height:28px;fill:#fff;opacity:.9;}
+
+/* Bottom controls */
+#customControls{
+  position:fixed;
+  left:12px;
+  right:12px;
+  bottom:12px;
+  z-index:1000;
+  height:64px;
+  display:flex;
+  gap:12px;
+  align-items:center;
+  padding:10px 14px;
+  border-radius:12px;
+  background:var(--bar-bg);
+  box-shadow:0 6px 24px rgba(0,0,0,0.6);
+  backdrop-filter:blur(var(--bar-blur));
+  border:1px solid rgba(255,255,255,0.04);
+}
+#barPlay{
+  width:44px;
+  height:44px;
+  border-radius:10px;
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.06);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  transition:transform .12s ease, background .12s ease;
+}
+#barPlay:hover{transform:scale(1.06);background:rgba(255,255,255,0.02);}
+#barPlay svg{width:18px;height:18px;fill:#fff;}
+
+#progressWrap{flex:1;display:flex;gap:12px;align-items:center;min-width:120px;}
+#progressContainer{flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden;cursor:pointer;position:relative;}
+#progressBar{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--accent);height:100%;transition:width .12s linear;}
+#timeDisplay{min-width:86px;text-align:right;color:#fff;font-size:13px;opacity:0.95;}
+
+/* Popup GIF */
+#popup{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,0.92);
+  z-index:3000;
+  transition:opacity .35s ease;
+}
+#popup.show{display:flex;opacity:1;}
+.popup-box{text-align:center;max-width:92%;}
+#popupGif{
+  width:auto;
+  max-width:360px;
+  border-radius:12px;
+  border:3px solid var(--accent);
+  box-shadow:0 10px 40px rgba(0,0,0,0.6);
+  cursor:pointer;
+  display:block;
+}
+#popupText{
+  margin-top:12px;
+  color:var(--accent);
+  font-weight:700;
+  letter-spacing:.3px;
+  font-size:16px;
+}
+@media (max-width:560px){
+  #customControls{left:8px;right:8px;padding:8px;height:56px;bottom:8px;}
+  #popupGif{max-width:280px;}
+  #volumeHint{width:50px;height:50px;}
+}
+</style>
+
+<div id="videoWrapper">
+  <video id="player" playsinline preload="metadata"></video>
+</div>
+
+<div id="volumeHint" title="Tap to enable sound">
+  <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3zM16.5 12c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03z"/></svg>
+</div>
+
+<div id="customControls">
+  <button id="barPlay">
+    <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+  </button>
+  <div id="progressWrap">
+    <div id="progressContainer"><div id="progressBar"></div></div>
+  </div>
+  <div id="timeDisplay">0:00 / 0:00</div>
+</div>
+
+<div id="popup">
+  <div class="popup-box">
+    <img id="popupGif" src="" alt="Promo" />
+    <div id="popupText">Continue to Watch</div>
+  </div>
+</div>
+
+<script>
+const adLink = "https://referredrender.com/dyu6kzr44?key=703bc4908bfdd21b148e4fe03f9810cb"; // <-- ganti ke link iklan kamu
+const adGifs = [
+ "https://i.postimg.cc/HWh9fjsk/m-ldpwiqacxt-E-Ai-mh-ZPy-L7dn7.gif",
+ "https://i.postimg.cc/sxNss7Hw/m-ldpwiqacxt-E-Ai-mh-Ggb-BHJUODq-Co-KGe-6675801b.gif",
+ "https://i.postimg.cc/xTrV7FFH/avatar-150-jpg-v1745014747.webp"
+];
+
+const player=document.getElementById('player');
+const playBtn=document.getElementById('barPlay');
+const playIcon=document.getElementById('playIcon');
+const pauseIcon=document.getElementById('pauseIcon');
+const progressContainer=document.getElementById('progressContainer');
+const progressBar=document.getElementById('progressBar');
+const timeDisplay=document.getElementById('timeDisplay');
+const volumeHint=document.getElementById('volumeHint');
+const popup=document.getElementById('popup');
+const popupGif=document.getElementById('popupGif');
+
+const urlParams=new URLSearchParams(window.location.search);
+const videoUrl=urlParams.get('url');
+
+if(videoUrl){
+  if(videoUrl.includes('videy.co/v/')){
+    const id=videoUrl.split('/v/')[1];
+    player.src=`https://cdn.videy.co/${id}.mp4`;
+  }else{
+    player.src=videoUrl;
+  }
+}else{
+  player.outerHTML='<div style="color:#fff;text-align:center;padding-top:40vh;">URL video tidak valid.<br/>Gunakan parameter ?url=...</div>';
+}
+
+player.addEventListener('loadeddata',()=>player.classList.add('visible'));
+
+player.muted=true;
+player.play().catch(()=>{});
+
+volumeHint.addEventListener('click',()=>{
+  player.muted=false;
+  player.volume=1;
+  player.play().catch(()=>{});
+  volumeHint.style.opacity='0';
+  setTimeout(()=>volumeHint.remove(),500);
+});
+
+playBtn.addEventListener('click',()=>{
+  if(player.paused)player.play();else player.pause();
+});
+player.addEventListener('play',()=>{playIcon.style.display='none';pauseIcon.style.display='block';});
+player.addEventListener('pause',()=>{playIcon.style.display='block';pauseIcon.style.display='none';});
+
+player.addEventListener('timeupdate',()=>{
+  const dur=player.duration||0,cur=player.currentTime||0,pct=dur?(cur/dur)*100:0;
+  progressBar.style.width=pct+'%';
+  timeDisplay.textContent=formatTime(cur)+' / '+formatTime(dur);
+});
+progressContainer.addEventListener('click',e=>{
+  const r=progressContainer.getBoundingClientRect();
+  const pos=(e.clientX-r.left)/r.width;
+  if(player.duration)player.currentTime=pos*player.duration;
+});
+function formatTime(sec){if(!sec||isNaN(sec))return'0:00';const m=Math.floor(sec/60),s=Math.floor(sec%60).toString().padStart(2,'0');return`${m}:${s}`;}
+
+let currentGif=-1;
+function showPopup(){
+  currentGif=(currentGif+1)%adGifs.length;
+  popupGif.src=adGifs[currentGif];
+  popup.classList.add('show');
+  document.body.style.overflow='hidden';
+}
+function hidePopup(){
+  popup.classList.remove('show');
+  document.body.style.overflow='auto';
+}
+popup.addEventListener('click',()=>{
+  hidePopup();
+  player.play().catch(()=>{});
+  // buka iklan di tab baru
+  window.open(adLink,'_blank');
+});
+player.addEventListener('loadeddata',()=>{
+  setTimeout(()=>showPopup(),10000000);
+  setInterval(()=>showPopup(),10000000);
+});
+player.addEventListener('contextmenu',e=>e.preventDefault());
+</script>
+
+<!-- Histats -->
+<script type="text/javascript">
+var _Hasync=_Hasync||[];
+_Hasync.push(['Histats.start','1,4978236,4,0,0,0,00000000']);
+_Hasync.push(['Histats.fasi','1']);
+_Hasync.push(['Histats.track_hits','']);
+(function(){
+  var hs=document.createElement('script');hs.type='text/javascript';hs.async=true;
+  hs.src=('//s10.histats.com/js15_as.js');
+  (document.head||document.body).appendChild(hs);
+})();
+</script>
+<noscript><a href="/" target="_blank"><img src="//sstatic1.histats.com/0.gif?4978236&101" alt="hit counter" border="0"></a>
+  </noscript>
+<script type='text/javascript' src='//referredrender.com/24/80/7a/24807af29054aa09c282aaebed9201af.js'></script>
+
+ <script type='text/javascript' src='//referredrender.com/93/40/7b/93407ba82bd13c152c864f91fc22e019.js'></script> 
+  
+  </body>
+  </html>
